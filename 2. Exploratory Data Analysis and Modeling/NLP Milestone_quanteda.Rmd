@@ -1,0 +1,206 @@
+---
+title: "Text Predictor for Smart Keyboard_Preliminary"
+author: "Yanfei Wu"
+date: "August 31, 2016"
+output: 
+  html_document:
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+```
+
+## Introduction  
+
+As people are spending more and more time on their mobile devices for email, social networking, banking, etc., smart keyboards that can predict and automatically complete the words users are trying to type are of great interest. The goal of this project is to build a predictive text model in the form of a Shiny app using English text data (twitters, news, and blogs) from a corpus called [HC Corpora](http://www.corpora.heliohost.org/).   
+
+This preliminary report (1) explains the major features of the data such as the distribution and relationship between the words, tokens, and phrases in the text; and (2) summarizes my plans for creating the prediction algorithm and Shiny app.   
+
+## Exploratory Analysis  
+
+### 1. Getting and summarizing Data  
+
+```{r load library, include = F}
+library(knitr)
+library(quanteda)
+library(wordcloud)
+library(ggplot2)
+library(gridExtra)
+```  
+
+```{r read files, echo = T}
+# Load data into R
+twitter <- readLines('en_US.twitter.txt', encoding = 'UTF-8', skipNul = T)
+blog <- readLines('en_US.blogs.txt', encoding = 'UTF-8', skipNul = T)
+news <- readLines('en_US.news.txt', encoding = 'UTF-8', skipNul = T)
+```
+
+The downloaded text data are loaded into R. Some basic information including the number of lines, characters, words of the dataset can be extracted and is shown in the table below.  
+
+```{r twitter read & summary, results = 'hide'}
+twitter_size <- file.info('en_US.twitter.txt')$size/(1024*1024) 
+twitter_lines <- length(twitter)
+twitter_words <- sum(sapply(gregexpr('\\W+', twitter), length))
+twitter_char <- sum(nchar(twitter))
+```
+
+```{r blog read & summary, results = 'hide'}
+blog_size <- file.info('en_US.blogs.txt')$size/(1024*1024) 
+blog_lines <- length(blog)
+blog_words <- sum(sapply(gregexpr('\\W+', blog), length))
+blog_char <- sum(nchar(blog))
+```
+
+```{r news read & summary, results = 'hide'}
+news_size <- file.info('en_US.news.txt')$size/(1024*1024) 
+news_lines <- length(news)
+news_words <- sum(sapply(gregexpr('\\W+', news), length))
+news_char <- sum(nchar(news))
+```
+
+```{r original file summary}
+summary <- data.frame(
+  file = c('en_US.twitters.txt', 'en_US.blogs.txt', 'en_US.news.txt'), 
+  size = c(twitter_size, blog_size, news_size),
+  line_count = c(twitter_lines, blog_lines, news_lines), 
+  word_count = c(twitter_words, blog_words, news_words), 
+  char_count = c(twitter_char, blog_char, news_char))
+
+kable(summary, row.names = NA, col.names = c('File', 'Size (MB)', 'Line Count', 'Word Count', 'Character Count'))
+``` 
+
+### 2. Sampling Data for New Corpus   
+As we can see from the table above, the entire dataset is very large which makes any further processing very slow. Because it is actualy not necessary to use all the data for building the algorithms, only 5% of the data from each data source (twitters, news, and blogs) are randomly selected and then combined to build a new corpus.  
+
+```{r sampling, echo = T}
+# Randomly sample 10% of data from the 3 data sources
+set.seed(25)
+sampletwitter <- twitter[sample(1:twitter_lines, twitter_lines*0.05)]
+sampleblog <- blog[sample(1:blog_lines, blog_lines*0.05)]
+samplenews <- news[sample(1:news_lines, news_lines*0.05)]
+writeLines(c(sampletwitter, sampleblog, samplenews), 'sample.txt')
+rm(twitter, blog, news, sampletwitter, sampleblog, samplenews) # free up memory
+```
+
+The statistics of the sampled data is shown in the table below:  
+
+```{r sample data statistics}
+sample <- readLines('sample.txt', encoding = 'UTF-8', skipNul = T)
+sample <- tolower(sample)
+
+summary2 <- data.frame(
+  file = 'sample.txt', 
+  size = file.info('sample.txt')$size/(1024*1024),
+  line_count = length(sample), 
+  word_count = sum(sapply(gregexpr('\\W+', sample), length)), 
+  char_count = sum(nchar(sample)))
+
+kable(summary2, row.names = NA, col.names = c('File', 'Size (MB)', 'Line Count', 'Word Count', 'Character Count'))
+```
+
+With this much smaller dataset, a new corpus can be constructed for further model building. After comparing two R libraries, namely **tm** library and **quanteda** library, I found that the latter is significantly faster. Also, it provides a more convenient way for pre-processing. Therefore, **quanteda** library is chosen to build the new corpus and to perform the steps described in the next section.
+
+```{r new corpus, echo = T}
+# Create new corpus with the sampled data 
+corpus <- corpus(sample)
+```
+
+### 3. N-gram Tokenization and Summary Statistics  
+
+With the new corpus constructed, the next step is to build a basic n-gram model. [N-gram](https://en.wikipedia.org/wiki/N-gram#n-gram_models) is a continuous sequence of n items from a given sequence of text or speech, in this case the corpus from twitter, blogs and news data. For example, a 2-gram is a sequence of 2 words.   
+
+Here, n from 1 to 4 are chosen to create 4 different n-grams using the **quanteda** library. The process includes:    
+  
+  a. Tokenization: break out the corpus text up into words (n words for n-gram).   
+  b. Creating document-term matrix for each n-gram: construct matrices to describe the frequency of the word or n-word combination that occurs in the corpus.   
+
+Note that the corpus needs to be pre-processed for tokenization and document-term matrix construction. The **quanteda** library allows us to pass common pre-processing arguments to the *tokenize()* function. The pre-processing in this case includes: 
+
+  * removing numbers  
+  * removing punctuation  
+  * removing symbols  
+  * removing Separators  
+  * removing twitter characters (@ and #)  
+  * removing hyphens  
+  * revoming URLs  
+
+```{r tokenization, echo = T, results = 'hide'}
+# N-gram tokenization & document-term matrix construction
+
+# 1-gram
+Uni_token <- tokenize(corpus, removePunct = T, removeSymbols = T, removeSeparators = T, removeTwitter = T, 
+                      removeHyphens = T, removeURL = T, ngrams = 1, verbose = F)
+Uni_dfm <- dfm(Uni_token)
+
+# 2-gram
+Bi_token <- tokenize(corpus, removePunct = T, removeSymbols = T, removeSeparators = T, removeTwitter = T, 
+                     removeHyphens = T, removeURL = T, ngrams = 2, concatenator = ' ', verbose = F)
+Bi_dfm <- dfm(Bi_token)
+
+# 3-gram
+Tri_token <- tokenize(corpus, removePunct = T, removeSymbols = T, removeSeparators = T, removeTwitter = T, 
+                      removeHyphens = T, removeURL = T, ngrams = 3, concatenator = ' ', verbose = F)
+Tri_dfm <- dfm(Tri_token)
+
+# 4-gram
+Quadri_token <- tokenize(corpus, removePunct = T, removeSymbols = T, removeSeparators = T, removeTwitter = T, 
+                         removeHyphens = T, removeURL = T, ngrams = 4,  concatenator = ' ', verbose = F)
+Quadri_dfm <- dfm(Quadri_token)
+```
+
+With the document-term matrices, we can find out terms with top frequency in the corpus for each n-gram model. The results are shown in the plots below:    
+
+```{r frequency}
+Uni_top <- data.frame(word = rownames(as.matrix(topfeatures(Uni_dfm, 10))), 
+                      freq = as.matrix(topfeatures(Uni_dfm, 10))[, 1])
+
+Bi_top <- data.frame(word = rownames(as.matrix(topfeatures(Bi_dfm, 10))), 
+                      freq = as.matrix(topfeatures(Bi_dfm, 10))[, 1])
+
+Tri_top <- data.frame(word = rownames(as.matrix(topfeatures(Tri_dfm, 10))), 
+                      freq = as.matrix(topfeatures(Tri_dfm, 10))[, 1])
+
+Quadri_top <- data.frame(word = rownames(as.matrix(topfeatures(Quadri_dfm, 10))), 
+                      freq = as.matrix(topfeatures(Quadri_dfm, 10))[, 1])
+```  
+
+```{r frequency plot, fig.width = 8, fig.height = 8, fig.align = 'center'}
+plot1 <- ggplot(Uni_top, aes(x = word, y = freq)) + geom_bar(stat="identity", fill = 'blue') + 
+  labs(x = NULL, y = 'Frequency', title = 'Top 10 Uni-gram') + coord_flip() + 
+  scale_x_discrete(limits = Uni_top$word)
+
+plot2 <- ggplot(Bi_top, aes(x = word, y = freq)) + geom_bar(stat="identity", fill = 'blue') +
+  labs(x = NULL, y = 'Frequency', title = 'Top 10 Bi-gram') + coord_flip() + 
+  scale_x_discrete(limits = Bi_top$word)
+
+plot3 <- ggplot(Tri_top, aes(x = word, y = freq)) + geom_bar(stat="identity", fill = 'blue') +
+  labs(x = NULL, y = 'Frequency', title = 'Top 10 Tri-gram') + coord_flip() + 
+  scale_x_discrete(limits = Tri_top$word)
+
+plot4 <- ggplot(Quadri_top, aes(x = word, y = freq)) + geom_bar(stat="identity", fill = 'blue') +
+  labs(x = NULL, y = 'Frequency', title = 'Top 10 Quadri-gram') + coord_flip() + 
+  scale_x_discrete(limits = Quadri_top$word)
+
+grid.arrange(plot1, plot2, plot3, plot4, nrow = 2, ncol = 2)
+```
+
+We can also visualize the frequency of the terms using word clouds using the *plot()* function which passes arguments through to *wordcloud()* function in the **wordcloud** package in R. For example, the word cloud of uni-gram for the top 100 words is shown below with the more frequent words having larger size.   
+
+```{r word cloud, fig.align = 'center'}
+set.seed(142)   
+plot(Uni_dfm, max.words = 100, colors = brewer.pal(6, "Dark2"), scale = c(8, .5))
+```  
+
+From the bar plots and the word cloud, we find that the terms with the highest frequency are mainly the stopwords, such as 'the', 'and'...It is probably necessary to remove these stopwords for our model. But on the other hand, they are a significant portion of our daily word libraries. So, removing them might not be helpful if the goal is to build a smart keyboard for mobile devices.  
+
+## Summary and Next Steps  
+
+So far, a basic n-gram model has been built to help us understand the relationship between the words. The next steps would be to:    
+
+  1. build a predictive model based on the n-grams to predict the next word based on the previous 1, 2, or 3 words
+  2. evaluate and improve the efficiency of the predictive model
+  3. explore new models and data to improve the predictive model  
+  4. create a Shiny App that accepts an n-gram and predicts the next word  
+
+
