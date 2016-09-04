@@ -1,52 +1,47 @@
 library(quanteda)
+library(dplyr)
 
-# read sample text and build corpus
-sample <- readLines('sample.txt', encoding = 'UTF-8', skipNul = T)
-sample <- tolower(sample)
-corpus <- corpus(sample)
-rm(sample)
+quadrigram <- readRDS("quadrigram.RData")
+trigram <- readRDS("trigram.RData")
+bigram <- readRDS("bigram.RData")
 
-# N-gram tokenization & document-term matrix construction
-dfm_ngram <- function(n) {
-  token_ngram <- function(n) {tokenize(corpus, removePunct = T, removeSymbols = T, removeSeparators = T, removeTwitter = T, 
-                                       removeHyphens = T, removeURL = T, ngrams = n, concatenator = ' ', verbose = F)}
-  dfm_gram <- dfm(token_ngram(n))
-} 
+predict <- function(input) {
+  # Clean user input
+  input <- tolower(input)
+  input <- unlist(tokenize(input, removeNumbers = T, removePunct = T, removeSymbols = T, removeSeparators = T, removeTwitter = T, 
+                           removeHyphens = T, removeURL = T, ngrams = 1, concatenator = ' ', verbose = F))
+  
+  # Stupid Backoff Algorithm
+  # 1. Check if the last 3 words of user input match the first 3 words of quadrigram table, output the matches 
+  # 2. If not, check if the last 2 words of user input match the first 2 words of trigram table, output the matches 
+  # 3. Also check if the last word of user input match the first word of bigram table, output the match
+  # 4. For 1-3, caculate the MLE scores for all candidate words. The probability of the word is multiplied by 0.4 to the power of backoff numbers.
+  
+  
+  input3 <- paste(tail(input, 3), collapse = ' ')
+  sub4 <- subset(quadrigram, first == input3)
+  sub4$freq <- round(sub4$freq/nrow(sub4), 3)
+  sub4 <- select(sub4, last, freq4 = freq)
+  
+  input2 <- paste(tail(input, 2), collapse = ' ')
+  sub3 <- subset(trigram, first == input2)
+  sub3$freq <- round(0.4*sub3$freq/nrow(sub3), 3)
+  sub3 <- select(sub3, last, freq3 = freq)
+  
+  input1 <- tail(input, 1)
+  sub2 <- subset(bigram, first == input1)
+  sub2$freq <- round(0.4^2*sub2$freq/nrow(sub2), 3)
+  sub2 <- select(sub2, last, freq2 = freq)
+  
+  total <- merge(sub4, sub3, by = 'last', all = T)
+  total <- merge(total, sub2, by = 'last', all = T)
+  total[is.na(total)] <- 0
+  total['freq_sum'] <- rowSums(total[, 2:4])
+  total <- arrange(total, desc(freq4), desc(freq3), desc(freq2))
+  predict <- head(total, 3)
+  predict
+  }
+  
+   
 
-# Build sorted frequency table (frequency descending)
-df_ngram <- function(n) {
-  matrix_ngram <- function(n) {as.matrix(colSums(sort(dfm_ngram(n))))}
-  df_ngram <- data.frame(word = rownames(matrix_ngram(n)), freq = matrix_ngram(n)[, 1], stringsAsFactors = F)
-}
-
-# Modify the frequency tables. Split the terms in the frequency table, e.g., first word + second word for 2-gram, first two words + third word for 3-gram... but keep the original order of the data frame
-
-split_ngram <- function(n) {strsplit(df_ngram$word, split = ' ')}
-
-# 2-gram 
-df_2gram <- df_ngram(2)
-df_2gram <- df_2gram %>% mutate(first = sapply(split_ngram(2), '[[', 1), last = sapply(split_ngram(2), '[[', 2)) %>% filter(freq >= 1)
-write.csv(df_2gram, 'bigram.csv', row.names = F)
-bigram <- read.csv('bigram.csv', stringsAsFactors = F)
-saveRDS(bigram, 'bigram.RData')
-
-# 3-gram 
-df_3gram <- df_ngram(3)
-df_3gram <- df_3gram %>% 
-  mutate(first = paste(sapply(split_ngram(3), '[[', 1), sapply(split_ngram(3), '[[', 2), sep = ' '), 
-         last = sapply(split_ngram(3), '[[', 3)) %>% 
-  filter(freq >= 1)
-write.csv(df_3gram, 'trigram.csv', row.names = F)
-bigram <- read.csv('trigram.csv', stringsAsFactors = F)
-saveRDS(bigram, 'trigram.RData') 
-
-# 4-gram 
-df_4gram <- df_ngram(4)
-df_4gram <- df_4gram %>% 
-  mutate(first = paste(sapply(split_ngram(3), '[[', 1), sapply(split_ngram(3), '[[', 2), sapply(split_ngram(3), '[[', 3), sep = ' '), 
-         last = sapply(split_ngram(3), '[[', 4)) %>% 
-  filter(freq >= 1)
-write.csv(df_4gram, 'quadrigram.csv', row.names = F)
-bigram <- read.csv('quadrigram.csv', stringsAsFactors = F)
-saveRDS(bigram, 'quadrigram.RData') 
 

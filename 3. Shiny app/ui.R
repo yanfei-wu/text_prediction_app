@@ -14,7 +14,9 @@ shinyUI(fluidPage(
       p("This is a text predictor. It can predict the next word you are trying to type based on the words you have already typed. It is designed based on n-gram model and it only supports English for now."),
       strong("Are you ready?"),
       
-      textInput("text", label = h3("Go ahead and type something......"), value = "Please enter text here..."),
+      textInput("text", label = h3("Please type something below"), value = "Enter here..."),
+      
+      p("It might take some time. Please be patient.", style = "color:blue"),
       
       hr(),
       h3("You have typed..."),
@@ -27,19 +29,15 @@ shinyUI(fluidPage(
     
     mainPanel(
       h1("Is this what you are going to type next?"), 
-      plotOutput("prediction"),
+      br(),
       
+
+      fluidRow(column(12, align = 'center', 
+                      plotOutput("plot1"))),
       
       hr(),
-      fluidRow(column(12, align="center",
-                      h4("Rate Your Experience"),
-                      actionButton("action1", label = "Happy"),
-                      actionButton("action2", label = "Not Happy"))),
-      
       fluidRow(column(12, align="center", 
-                      plotOutput('Thankyou')))
-      
-      ))
-    )
-  )
+                     h4("Thank you for using this app!")))
+    ))
+  ))
   
