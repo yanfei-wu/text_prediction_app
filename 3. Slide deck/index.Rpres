@@ -1,0 +1,52 @@
+Text Predictor App
+========================================================
+author: Yanfei Wu
+date: September 5, 2016
+autosize: true
+
+Background
+========================================================
+
+  
+As people spend more time on their mobile devices, developing smart keyboards that could make typing easier becomes more and more desirable. For example, **Swiftkey** builds a smart keyboard which can present three options for what the next word might be based on what the user have typed.  
+<div align="center">
+<img src="swiftkey.jpg" height=230>
+</div>
+The goal of this project is to understand the key to smart keyboards, i.e., predictive text models, and to build a Shiny app using the models.   
+     
+
+Shiny App: First Look  
+========================================================
+
+<div align="center">
+<img src="app.png" height=470>
+</div>
+The above shows the app user interface. The user can input some English sentences at the left and the app outputs three words that are most likely to be what the user want to type next.        
+
+Shiny App: Behind the Scenes I 
+========================================================
+
+The data for building this app are English texts collected from twitters, blogs, and news. About 5% of the original data are randomly selected for this app.  
+
+The prediction model is based on **n-gram**, which is a sequence of n words. In this app, n is from 1 to 4. Document term matrix for each n-gram is determined to show the term frequency.  
+<div align="center">
+<img src="wordcloud2.png" height=250>
+</div>
+
+Shiny App: Behind the Scenes II  
+========================================================
+
+The app uses a so-called **backoff algorithsm**. The prediction starts with 4-gram by matching the last three words of the user input to the first three words of the 4-grams. It outputs the last word of the 4-grams whenever there is a match. It also calculates the frequency of that word (1/total number of matches).   
+
+The algorithsm then backoffs to 3-gram and 2-gram to find the possible last words similarly. However, the calculated frequency of the potential word needs to be multiplied by a factor. For example, 0.4 for 3-gram, and $0.4^2$ for 2-gram in this case. The maximum likelihood estimate (MLE) of each candicate word is calculated with its overall frequency, and words with the largest MLE are selected as the  output.  
+
+More Information  
+========================================================
+
+The app can be accessed at:  
+
+https://yanfei-wu.shinyapps.io/text_predictor/  
+
+The R code for data pre-processing, n-gram based prediction models, and shiny app can be accessed at:  
+
+https://github.com/yanfei-wu/Capstone-Project-NLP 
