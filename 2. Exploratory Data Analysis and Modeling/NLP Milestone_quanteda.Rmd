@@ -74,7 +74,7 @@ kable(summary, row.names = NA, col.names = c('File', 'Size (MB)', 'Line Count', 
 As we can see from the table above, the entire dataset is very large which makes any further processing very slow. Because it is actualy not necessary to use all the data for building the algorithms, only 5% of the data from each data source (twitters, news, and blogs) are randomly selected and then combined to build a new corpus.  
 
 ```{r sampling, echo = T}
-# Randomly sample 10% of data from the 3 data sources
+# Randomly sample 5% of data from each of the 3 data sources
 set.seed(25)
 sampletwitter <- twitter[sample(1:twitter_lines, twitter_lines*0.05)]
 sampleblog <- blog[sample(1:blog_lines, blog_lines*0.05)]
