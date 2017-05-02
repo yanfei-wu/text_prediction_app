@@ -5,7 +5,6 @@
 
 # Session Data files
 .RData
-/.RData
 
 # Example code in package build process
 *-Ex.R
@@ -36,5 +35,8 @@ vignettes/*.pdf
 .DS_Store
 sample.txt
 
-/data/
+1_Data/data/
+3_Shiny_app/data/
+
+
 
