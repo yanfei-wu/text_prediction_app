@@ -5,27 +5,27 @@ ustwitter <- read.table('en_US.twitter.txt', sep = '\t', stringsAsFactors = F)
 head(ustwitter, 3)
 str(ustwitter)
 
-# There are some rows containing more than 1 twits as they are newline seperated. 
-# need to further break them down to single twit.
+# There are some rows containing more than 1 tweets as they are newline seperated. 
+# need to further break them down to single tweet.
 s <- strsplit(ustwitter$V1, '\n')
 ustwitter_df <- data.frame(V1 = unlist(s), stringsAsFactors = F)
 str(ustwitter_df)  
 
 # explore regular expression with text data 
-# find twits containing 'biostats'
+# find tweets containing 'biostats'
 grep('biostats', dd$V1, perl = T, value = T) 
 
-# show the number of twits with 'love' in them
+# show the number of tweets with 'love' in them
 length(grep('love', dd$V1, perl = T, value = F)) 
 
-# show the number of twits with 'hate' in them
+# show the number of tweets with 'hate' in them
 length(grep('hate', dd$V1, perl = T, value = F)) 
 
-# show the number of twits with a particular sentence 
+# show the number of tweets with a particular sentence 
 length(grep('A computer once beat me at chess, but it was no match for me at kickboxing', 
             dd$V1, perl = T, value = F))
 
-# find the longest twits length
+# find the longest tweets length
 ustwitter_df['Len'] <- nchar(ustwitter_df$V1)
 head(sort(ustwitter_df$V1, decreasing = T), 1)
 
